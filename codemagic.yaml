@@ -25,12 +25,21 @@ workflows:
       app_store_connect: codemagic
     environment:
       xcode: latest
-      # 只按「分发类型 + bundle id」取签名文件：Codemagic 会去它自己的
-      # Code signing identities 里找匹配的证书 + 描述文件，两者都必须上传过。
+      # 按名字点名使用 Codemagic 里已上传的证书 + 描述文件，
+      # 不走「按类型自动匹配」，避免 No matching profiles。
+      # 两个名字必须与 Code signing identities 里的 Reference name 完全一致。
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.iskenderergen.apiarylog
+        certificates:
+          - apiarylog_dist
+        provisioning_profiles:
+          - apiarylog_profile
     scripts:
+      - name: Apply profiles to the project
+        script: |
+          set -euo pipefail
+          # 把已装好的证书/描述文件写进工程设置，同时生成 export_options.plist。
+          # 少了这一步，build-ipa 会报 export_options.plist 不存在。
+          xcode-project use-profiles
       - name: Show signing files in use
         script: |
           set -euo pipefail
@@ -38,6 +47,8 @@ workflows:
           security find-identity -v -p codesigning || true
           echo "--- provisioning profiles installed ---"
           ls -1 ~/Library/MobileDevice/Provisioning\ Profiles/ 2>/dev/null | wc -l
+          echo "--- export options ---"
+          ls -la /Users/builder/export_options.plist 2>/dev/null || echo "not generated yet"
       - name: Set build number
         script: |
           agvtool new-version -all $BUILD_NUMBER
