@@ -21,33 +21,22 @@ workflows:
   ios-build:
     name: Apiary Log iOS Build (App Store)
     max_build_duration: 60
+    integrations:
+      app_store_connect: codemagic
     environment:
       xcode: latest
-      groups:
-        - appstore_creds
+      # 只按「分发类型 + bundle id」取签名文件：Codemagic 会去它自己的
+      # Code signing identities 里找匹配的证书 + 描述文件，两者都必须上传过。
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.iskenderergen.apiarylog
     scripts:
-      - name: Show credentials state
+      - name: Show signing files in use
         script: |
           set -euo pipefail
-          echo "ISSUER_ID:      $([ -n "${APP_STORE_CONNECT_ISSUER_ID:-}" ] && echo PRESENT || echo MISSING)"
-          echo "KEY_IDENTIFIER: $([ -n "${APP_STORE_CONNECT_KEY_IDENTIFIER:-}" ] && echo PRESENT || echo MISSING)"
-          echo "PRIVATE_KEY:    $([ -n "${APP_STORE_CONNECT_PRIVATE_KEY:-}" ] && echo PRESENT || echo MISSING)"
-          if [ -z "${APP_STORE_CONNECT_ISSUER_ID:-}" ]; then
-            echo "!! 变量组 appstore_creds 没有生效，后面必然失败"
-          fi
-      - name: Set up code signing
-        script: |
-          set -euo pipefail
-          keychain initialize
-          app-store-connect fetch-signing-files "com.iskenderergen.apiarylog" \
-            --type IOS_APP_STORE --create
-          keychain add-certificates
-          xcode-project use-profiles
-      - name: Verify profiles
-        script: |
-          echo "--- 钥匙串签名身份 ---"
+          echo "--- keychain identities ---"
           security find-identity -v -p codesigning || true
-          echo "--- 描述文件数量 ---"
+          echo "--- provisioning profiles installed ---"
           ls -1 ~/Library/MobileDevice/Provisioning\ Profiles/ 2>/dev/null | wc -l
       - name: Set build number
         script: |
@@ -59,9 +48,7 @@ workflows:
             --scheme "ApiaryLog"
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        auth: integration
         submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
