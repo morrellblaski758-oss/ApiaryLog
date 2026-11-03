@@ -27,12 +27,12 @@ workflows:
         - appstore_creds
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.example.apiarylog
+        bundle_identifier: com.iskenderergen.apiarylog
     scripts:
       - name: Set up code signing
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files "com.example.apiarylog" \
+          app-store-connect fetch-signing-files "com.iskenderergen.apiarylog" \
             --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles
@@ -44,6 +44,12 @@ workflows:
           xcode-project build-ipa \
             --project "ApiaryLog.xcodeproj" \
             --scheme "ApiaryLog"
+      - name: Upload to TestFlight
+        script: |
+          set -e
+          IPA=$(find build/ios/ipa -maxdepth 1 -name "*.ipa" | head -1)
+          echo "uploading $IPA"
+          app-store-connect publish --path "$IPA" --testflight
     artifacts:
       - build/ios/ipa/*.ipa
 
@@ -66,20 +72,21 @@ workflows:
       - name: Capture
         script: |
           set -e
-          BUNDLE="com.example.apiarylog"
+          BUNDLE="com.iskenderergen.apiarylog"
           APP=$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name "*.app" | head -1)
           mkdir -p capture
           UDID=$(xcrun simctl list devices available | grep -m1 "iPhone 17 Pro Max (" | grep -oE "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP"
-          SIMCTL_CHILD_RP_TAB=0 xcrun simctl launch "$UDID" "$BUNDLE"
-          sleep 3
-          xcrun simctl io "$UDID" screenshot "capture/hives.png"
-          SIMCTL_CHILD_RP_TAB=1 xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
-          SIMCTL_CHILD_RP_TAB=1 xcrun simctl launch "$UDID" "$BUNDLE"
-          sleep 3
-          xcrun simctl io "$UDID" screenshot "capture/stats.png"
+          # 先往模拟器沙盒里塞演示数据，截图才不是空列表。
+          # 这只影响这台模拟器；打包出去的 .app 里没有任何数据。
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)
+          python3 tools/seed_demo_data.py "$DATA/Documents/apiarylog.json"
+          xcrun simctl launch "$UDID" "$BUNDLE"
+          sleep 4
+          xcrun simctl io "$UDID" screenshot "capture/01-hives.png"
+          sips -g pixelWidth -g pixelHeight capture/01-hives.png || true
           ls -la capture
     artifacts:
       - capture/*.png

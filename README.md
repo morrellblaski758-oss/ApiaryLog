@@ -44,15 +44,16 @@ support.html, privacy.html     App Store support + privacy pages
 tools/                         icon generator, self-check
 ```
 
-## Before the first signed build
+## Bundle identifier (already set)
 
-Replace the placeholder bundle ID `com.example.apiarylog` in **three** places:
+`com.iskenderergen.apiarylog` with team `A2FJYFNGJ9`, applied in three places:
 
 1. `ApiaryLog.xcodeproj/project.pbxproj` (Debug and Release)
 2. `codemagic.yaml` → `ios_signing.bundle_identifier`
 3. `codemagic.yaml` → `app-store-connect fetch-signing-files`
 
-It must match the App ID registered in the client's developer account, and cannot be changed after release.
+The App ID must already exist in the client's developer account, and the bundle ID cannot be changed
+after the first release.
 
 ## Build
 
