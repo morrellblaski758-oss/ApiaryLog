@@ -135,14 +135,27 @@ workflows:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP"
-          # 先往模拟器沙盒里塞演示数据，截图才不是空列表。
-          # 这只影响这台模拟器；打包出去的 .app 里没有任何数据。
+          # 往模拟器沙盒写演示数据，截图才不是空列表；
+          # 打包出去的 .app 里没有任何数据。
           DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)
           python3 tools/seed_demo_data.py "$DATA/Documents/apiarylog.json"
-          xcrun simctl launch "$UDID" "$BUNDLE"
-          sleep 4
-          xcrun simctl io "$UDID" screenshot "capture/01-hives.png"
-          sips -g pixelWidth -g pixelHeight capture/01-hives.png || true
+
+          # 四个界面各截一张。tab/open 只走 DEBUG 里的环境变量钩子，
+          # Release 包里没有这段代码。
+          shot() {
+            xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+            sleep 1
+            SIMCTL_CHILD_APIARYLOG_TAB="$1" SIMCTL_CHILD_APIARYLOG_OPEN_HIVE="$2" \
+              xcrun simctl launch "$UDID" "$BUNDLE"
+            sleep 5
+            xcrun simctl io "$UDID" screenshot "capture/$3"
+            sips -g pixelWidth -g pixelHeight "capture/$3" | tail -2
+          }
+
+          shot 1 0 1_stats.png
+          shot 0 0 2_hives.png
+          shot 0 1 3_inspections.png
+          shot 2 0 4_about.png
           ls -la capture
     artifacts:
       - capture/*.png
