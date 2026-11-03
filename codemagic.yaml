@@ -60,7 +60,52 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # 只上传构建，不自动提交「外部测试 Beta 审核」。
+        # 外部测试需要先在 ASC 填 TestFlight 测试信息（反馈邮箱、联系人），
+        # 那一步失败会连累整个构建；上架本身不需要它。
+        submit_to_testflight: false
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+  ios-build-adhoc:
+    name: Apiary Log Ad Hoc (device install)
+    max_build_duration: 60
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      xcode: latest
+      # 真机安装用：Ad Hoc 证书 + 包含设备 UDID 的 Ad Hoc 描述文件
+      ios_signing:
+        certificates:
+          - apiarylog_dist
+        provisioning_profiles:
+          - apiarylog_adhoc
+    scripts:
+      - name: Apply profiles to the project
+        script: |
+          set -euo pipefail
+          xcode-project use-profiles
+      - name: Set build number
+        script: |
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Build Ad Hoc ipa
+        script: |
+          xcode-project build-ipa \
+            --project "ApiaryLog.xcodeproj" \
+            --scheme "ApiaryLog"
+      - name: Show ipa info
+        script: |
+          set -euo pipefail
+          IPA=$(find build/ios/ipa -maxdepth 1 -name "*.ipa" | head -1)
+          echo "ipa: $IPA"
+          ls -lh "$IPA"
+          unzip -o -q "$IPA" -d /tmp/ipa_check "Payload/*.app/Info.plist" || true
+          PLIST=$(find /tmp/ipa_check -name Info.plist | head -1)
+          if [ -n "$PLIST" ]; then
+            /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" 2>/dev/null || true
+          fi
     artifacts:
       - build/ios/ipa/*.ipa
 
