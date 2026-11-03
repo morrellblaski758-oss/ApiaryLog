@@ -29,14 +29,6 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.iskenderergen.apiarylog
     scripts:
-      - name: Show signing state
-        script: |
-          echo "--- 凭据检查（只打印有没有）---"
-          echo "ISSUER_ID:      $([ -n "$APP_STORE_CONNECT_ISSUER_ID" ] && echo PRESENT || echo MISSING)"
-          echo "KEY_IDENTIFIER: $([ -n "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] && echo PRESENT || echo MISSING)"
-          echo "PRIVATE_KEY:    $([ -n "$APP_STORE_CONNECT_PRIVATE_KEY" ] && echo PRESENT || echo MISSING)"
-          echo "--- 钥匙串 ---"
-          security find-identity -v -p codesigning || true
       - name: Set build number
         script: |
           agvtool new-version -all $BUILD_NUMBER
@@ -47,7 +39,7 @@ workflows:
             --scheme "ApiaryLog"
     publishing:
       app_store_connect:
-        api_key: codemagic
+        auth: integration
         submit_to_testflight: true
     artifacts:
       - build/ios/ipa/*.ipa
