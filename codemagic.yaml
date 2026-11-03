@@ -21,10 +21,10 @@ workflows:
   ios-build:
     name: Apiary Log iOS Build (App Store)
     max_build_duration: 60
+    integrations:
+      app_store_connect: codemagic
     environment:
       xcode: latest
-      groups:
-        - appstore_creds
     scripts:
       - name: Code signing preflight
         script: |
