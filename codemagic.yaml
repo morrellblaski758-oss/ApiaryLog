@@ -25,10 +25,13 @@ workflows:
       xcode: latest
       groups:
         - appstore_creds
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.iskenderergen.apiarylog
     scripts:
+      - name: Code signing preflight
+        script: |
+          echo "--- 凭据检查（只打印有没有，不打印内容）---"
+          echo "APP_STORE_CONNECT_ISSUER_ID:      $([ -n "$APP_STORE_CONNECT_ISSUER_ID" ] && echo PRESENT || echo MISSING)"
+          echo "APP_STORE_CONNECT_KEY_IDENTIFIER: $([ -n "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] && echo PRESENT || echo MISSING)"
+          echo "APP_STORE_CONNECT_PRIVATE_KEY:    $([ -n "$APP_STORE_CONNECT_PRIVATE_KEY" ] && echo PRESENT || echo MISSING)"
       - name: Set up code signing
         script: |
           keychain initialize
@@ -36,6 +39,12 @@ workflows:
             --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles
+      - name: Verify profiles
+        script: |
+          echo "--- 钥匙串里的签名身份 ---"
+          security find-identity -v -p codesigning || true
+          echo "--- 已安装的描述文件数量 ---"
+          ls -1 ~/Library/MobileDevice/Provisioning\ Profiles/ 2>/dev/null | wc -l
       - name: Set build number
         script: |
           agvtool new-version -all $BUILD_NUMBER
