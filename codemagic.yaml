@@ -1,0 +1,85 @@
+workflows:
+  compile-check:
+    name: Compile Check (no signing)
+    max_build_duration: 30
+    environment:
+      xcode: latest
+    scripts:
+      - name: Compile
+        script: |
+          xcodebuild \
+            -project "ApiaryLog.xcodeproj" \
+            -scheme "ApiaryLog" \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+    artifacts:
+      - build/Build/Products/Release-iphoneos/*.app
+
+  ios-build:
+    name: Apiary Log iOS Build (App Store)
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      groups:
+        - appstore_creds
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.example.apiarylog
+    scripts:
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "com.example.apiarylog" \
+            --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Set build number
+        script: |
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Build ipa
+        script: |
+          xcode-project build-ipa \
+            --project "ApiaryLog.xcodeproj" \
+            --scheme "ApiaryLog"
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+  demo-capture:
+    name: Demo Screenshots (no signing)
+    max_build_duration: 30
+    environment:
+      xcode: latest
+    scripts:
+      - name: Build for simulator
+        script: |
+          xcodebuild \
+            -project "ApiaryLog.xcodeproj" \
+            -scheme "ApiaryLog" \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+      - name: Capture
+        script: |
+          set -e
+          BUNDLE="com.example.apiarylog"
+          APP=$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name "*.app" | head -1)
+          mkdir -p capture
+          UDID=$(xcrun simctl list devices available | grep -m1 "iPhone 17 Pro Max (" | grep -oE "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          SIMCTL_CHILD_RP_TAB=0 xcrun simctl launch "$UDID" "$BUNDLE"
+          sleep 3
+          xcrun simctl io "$UDID" screenshot "capture/hives.png"
+          SIMCTL_CHILD_RP_TAB=1 xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+          SIMCTL_CHILD_RP_TAB=1 xcrun simctl launch "$UDID" "$BUNDLE"
+          sleep 3
+          xcrun simctl io "$UDID" screenshot "capture/stats.png"
+          ls -la capture
+    artifacts:
+      - capture/*.png
