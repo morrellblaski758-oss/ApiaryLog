@@ -4,6 +4,8 @@ struct HiveListView: View {
     @EnvironmentObject private var state: ApiaryAppState
     @State private var showingNewHive = false
     @State private var editingHive: Hive?
+    /// 仅云端截图用：DEBUG 下自动推入第一个蜂箱的详情页
+    @State private var autoOpenFirst = false
 
     private var summaries: [HiveSummary] {
         let all = ApiaryMetrics.summaries(hives: state.store.hives, inspections: state.store.inspections)
@@ -17,6 +19,23 @@ struct HiveListView: View {
                     emptyState
                 } else {
                     List {
+                        if state.store.hasSampleData {
+                            Section {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("This is sample data")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text("It is here so you can see how Apiary Log works. "
+                                         + "Clear it any time and start your own log.")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                    Button("Clear sample data") {
+                                        state.store.clearSampleData()
+                                    }
+                                    .font(.footnote.weight(.semibold))
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
                         Section {
                             ForEach(summaries) { summary in
                                 NavigationLink {
@@ -65,6 +84,21 @@ struct HiveListView: View {
                 HiveEditorView(hive: hive, isNew: false) { updated in
                     state.store.updateHive(updated)
                 }
+            }
+            .navigationDestination(isPresented: $autoOpenFirst) {
+                if let first = summaries.first?.hive {
+                    HiveDetailView(hive: first)
+                }
+            }
+            .task {
+                state.store.loadSampleIfFirstLaunch()
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["APIARYLOG_OPEN_HIVE"] == "1",
+                   !state.store.hives.isEmpty {
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    autoOpenFirst = true
+                }
+                #endif
             }
         }
     }
