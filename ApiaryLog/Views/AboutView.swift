@@ -35,6 +35,19 @@ struct AboutView: View {
                     Text("These settings only affect how records are displayed and counted on this device.")
                 }
 
+                if state.store.hasSampleData {
+                    Section {
+                        Button("Clear sample data", role: .destructive) {
+                            state.store.clearSampleData()
+                        }
+                    } header: {
+                        Text("Sample data")
+                    } footer: {
+                        Text("Records whose names start with Sample are demo data. "
+                             + "Clearing them does not touch anything you created yourself.")
+                    }
+                }
+
                 Section {
                     Text(ApiaryStrings.aboutDataBody)
                         .font(.callout)
